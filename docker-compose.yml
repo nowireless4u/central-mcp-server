@@ -1,0 +1,10 @@
+services:
+  central-mcp:
+    build: .
+    ports:
+      - "8001:8001"
+    environment:
+      - CENTRAL_BASE_URL=${CENTRAL_BASE_URL}
+      - CENTRAL_CLIENT_ID=${CENTRAL_CLIENT_ID}
+      - CENTRAL_CLIENT_SECRET=${CENTRAL_CLIENT_SECRET}
+      - MCP_TRANSPORT=sse

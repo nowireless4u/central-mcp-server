@@ -1,9 +1,12 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastmcp import FastMCP
 from fastmcp.experimental.transforms.code_mode import CodeMode
 from services.central_service import get_conn, verify_connection
 from tools import sites, devices, clients, alerts, prompts, events
+
+logger = logging.getLogger(__name__)
 
 _INSTRUCTIONS = (Path(__file__).parent / "INSTRUCTIONS.md").read_text()
 
@@ -15,10 +18,11 @@ async def lifespan(_server: FastMCP):
         conn = get_conn()
         verify_connection(conn)
     except Exception as e:
-        raise RuntimeError(
-            f"Failed to connect to Central: {e}\n"
-            "Ensure credentials in .env are correct and the server is reachable."
-        ) from e
+        logger.warning(
+            "Central connection not available at startup: %s. "
+            "Tools will fail until valid credentials are provided.",
+            e,
+        )
     try:
         yield {"conn": conn}
     finally:
@@ -45,8 +49,12 @@ def run():
 
 
 if __name__ == "__main__":
-    mcp.run()
-    # mcp.run(transport="sse", host="127.0.0.1", port=8001)
+    import os
+
+    if os.getenv("MCP_TRANSPORT", "stdio") == "sse":
+        mcp.run(transport="sse", host="0.0.0.0", port=8001)
+    else:
+        mcp.run()
 
 # Test
 # uv run pytest tests/ -v
