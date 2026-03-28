@@ -1,6 +1,6 @@
 # central-mcp-server
 
-Community MCP server for HPE Aruba Networking Central. This exposes your Central data as tools that AI assistants can query directly.
+Community MCP server for HPE Aruba Networking Central, packaged as a Docker container. This exposes your Central data as tools that AI assistants can query directly.
 
 ---
 
@@ -18,18 +18,21 @@ Community MCP server for HPE Aruba Networking Central. This exposes your Central
 ## Table of Contents
 
 - [Overview](#overview)
-- [Getting Started](#getting-started)
-  - [Getting Your Credentials](#getting-your-credentials)
-  - [Installation](#installation)
-  - [MCP Client Configuration](#mcp-client-configuration)
+- [Prerequisites](#prerequisites)
+- [Getting Your Credentials](#getting-your-credentials)
+- [Quick Start](#quick-start)
+- [MCP Client Configuration](#mcp-client-configuration)
 - [What You Can Ask](#what-you-can-ask)
+- [Container Management](#container-management)
 - [Dev Setup](#dev-setup)
 
 ---
 
 ## Overview
 
-`central-mcp-server` wraps Central REST APIs and exposes them as [MCP (Model Context Protocol)](https://modelcontextprotocol.io) tools. Once configured, AI assistants like Claude or GitHub Copilot can answer questions like:
+`central-mcp-server` wraps Central REST APIs and exposes them as [MCP (Model Context Protocol)](https://modelcontextprotocol.io) tools. The server runs inside a Docker container using SSE (Server-Sent Events) transport on port 8001, so there are no host-level Python or dependency requirements.
+
+Once configured, AI assistants like Claude or GitHub Copilot can answer questions like:
 
 - *"Which sites have poor health scores right now?"*
 - *"Show me all failed wireless clients at HQ in the last 24 hours."*
@@ -41,19 +44,25 @@ See the [full overview guide](https://developer.arubanetworks.com/new-central/do
 
 ---
 
-## Getting Started
+## Prerequisites
 
-### Getting Your Credentials
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) installed on your machine.
+
+That's it. No Python, `uv`, or other tooling required on the host.
+
+---
+
+## Getting Your Credentials
 
 You need three values to connect this server to Central's REST APIs: `CENTRAL_BASE_URL`, `CENTRAL_CLIENT_ID`, and `CENTRAL_CLIENT_SECRET`.
 
-#### API Gateway Base URL (CENTRAL_BASE_URL)
+### API Gateway Base URL (CENTRAL_BASE_URL)
 
 The API gateway base URL for your Central account (e.g. `https://us5.api.central.arubanetworks.com`).
 
 > For instructions on how to locate your base URL, see [Finding Your Base URL in Central](https://developer.arubanetworks.com/new-central/docs/getting-started-with-rest-apis#finding-your-base-url).
 
-#### API Client Credentials (CENTRAL_CLIENT_ID & CENTRAL_CLIENT_SECRET)
+### API Client Credentials (CENTRAL_CLIENT_ID & CENTRAL_CLIENT_SECRET)
 
 OAuth credentials created through the HPE GreenLake Platform:
 
@@ -68,30 +77,58 @@ OAuth credentials created through the HPE GreenLake Platform:
 
 ---
 
-### Installation
+## Quick Start
 
-Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) if you haven't already. It's the only prerequisite.
-
-**Using an MCP client (Claude Desktop, Claude Code, GitHub Copilot)?**
-No install command needed. Jump to [MCP Client Configuration](#mcp-client-configuration), the client fetches and runs the server automatically via `uvx`.
-
-**Want the server as a persistent CLI tool on your PATH?**
+### 1. Clone the repository
 
 ```bash
-uv tool install --prerelease=allow central-mcp-server
+git clone <Github Server URL>
+cd central-mcp-server
 ```
 
-> `--prerelease=allow` is required because this server depends on `pycentral`, which currently only has a pre-release version on PyPI. uv skips pre-releases by default.
+### 2. Create your `.env` file
 
-See the [full setup guide](https://developer.arubanetworks.com/new-central/docs/central-mcp-setup) for prerequisites, troubleshooting, and step-by-step instructions.
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your credentials:
+
+```
+CENTRAL_BASE_URL=your-central-base-url
+CENTRAL_CLIENT_ID=your-client-id
+CENTRAL_CLIENT_SECRET=your-client-secret
+```
+
+### 3. Start the container
+
+```bash
+docker compose up -d
+```
+
+The server starts on `http://localhost:8001` with the MCP endpoint at `http://localhost:8001/mcp`.
+
+### 4. Verify it's running
+
+```bash
+docker compose logs central-mcp
+```
+
+You should see the server start up and verify its connection to Central. If credentials are invalid, you'll see a warning in the logs.
+
+### 5. Stop the container
+
+```bash
+docker compose down
+```
 
 ---
 
-### MCP Client Configuration
+## MCP Client Configuration
 
-Replace the placeholder values with your actual credentials in all examples below.
+All MCP clients connect to the container over HTTP. The server must be running (`docker compose up -d`) before configuring your client.
 
-#### Claude Desktop
+### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
@@ -99,13 +136,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 {
   "mcpServers": {
     "central-mcp": {
-      "command": "uvx",
-      "args": ["--prerelease=allow", "central-mcp-server"],
-      "env": {
-        "CENTRAL_BASE_URL": "your-central-base-url",
-        "CENTRAL_CLIENT_ID": "your-client-id",
-        "CENTRAL_CLIENT_SECRET": "your-client-secret"
-      }
+      "url": "http://localhost:8001/mcp",
+      "type": "http"
     }
   }
 }
@@ -113,34 +145,24 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 See the [Claude Desktop setup guide](https://developer.arubanetworks.com/new-central/docs/central-mcp-claude-desktop-setup) for full steps and troubleshooting.
 
-#### Claude Code
+### Claude Code
 
 ```bash
-claude mcp add central-mcp \
-  -e CENTRAL_BASE_URL=your-central-base-url \
-  -e CENTRAL_CLIENT_ID=your-client-id \
-  -e CENTRAL_CLIENT_SECRET=your-client-secret \
-  -- uvx --prerelease=allow central-mcp-server
+claude mcp add central-mcp --transport http http://localhost:8001/mcp
 ```
 
 See the [Claude Code setup guide](https://developer.arubanetworks.com/new-central/docs/central-mcp-claude-code-setup) for full steps and troubleshooting.
 
-#### GitHub Copilot (VS Code)
+### GitHub Copilot (VS Code)
 
-Add `.vscode/mcp.json` to your workspace root and add that path to `.gitignore` to keep credentials out of version control:
+Add `.vscode/mcp.json` to your workspace root:
 
 ```json
 {
   "servers": {
     "central-mcp": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["--prerelease=allow", "central-mcp-server"],
-      "env": {
-        "CENTRAL_BASE_URL": "your-central-base-url",
-        "CENTRAL_CLIENT_ID": "your-client-id",
-        "CENTRAL_CLIENT_SECRET": "your-client-secret"
-      }
+      "url": "http://localhost:8001/mcp",
+      "type": "http"
     }
   }
 }
@@ -152,6 +174,8 @@ Add to `.gitignore`:
 ```
 
 See the [GitHub CoPilot setup guide](https://developer.arubanetworks.com/new-central/docs/central-github-copilot-setup) for full steps and troubleshooting.
+
+![GitHub Copilot Setup](CoPilot_Setup.png)
 
 ---
 
@@ -166,7 +190,7 @@ Once connected, you can ask your AI assistant questions like:
 - *"Find all failed wireless clients at HQ in the last 24 hours."*
 - *"What events happened on switch SW-CORE-01 yesterday?"*
 
-See [Central MCP Server in Action]((https://developer.arubanetworks.com/new-central/docs/central-mcp-in-action)) for real query examples across all supported clients.
+See [Central MCP Server in Action](https://developer.arubanetworks.com/new-central/docs/central-mcp-in-action) for real query examples across all supported clients.
 
 ### Tools
 
@@ -218,7 +242,58 @@ The server includes 10 built-in prompts to help AI assistants run common workflo
 
 ---
 
+## Container Management
+
+### Rebuild after code changes
+
+```bash
+docker compose up -d --build
+```
+
+### View logs
+
+```bash
+docker compose logs -f central-mcp
+```
+
+### Restart the container
+
+```bash
+docker compose restart
+```
+
+### Run on a different port
+
+Override the port mapping in `docker-compose.yml` or via the command line:
+
+```bash
+docker compose up -d -e HOST_PORT=9001 --build
+```
+
+Or edit `docker-compose.yml`:
+
+```yaml
+ports:
+  - "9001:8001"
+```
+
+Then update your MCP client configuration to use `http://localhost:9001/mcp`.
+
+### Remote access
+
+If running on a remote host, replace `localhost` with the host's IP or hostname in your MCP client configuration:
+
+```
+http://192.168.1.100:8001/mcp
+```
+
+Ensure port 8001 is accessible from the client machine. For production deployments, place a reverse proxy (nginx, traefik) in front of the container to handle TLS and authentication.
+
+---
+
 ## Dev Setup
+
+For contributors who want to modify the server code:
 
 ```bash
 git clone <Github Server URL>
@@ -241,14 +316,27 @@ CENTRAL_CLIENT_ID=your-client-id
 CENTRAL_CLIENT_SECRET=your-client-secret
 ```
 
-Run the server:
+Run the server locally (stdio transport for direct MCP client attachment):
 
 ```bash
 python3 server.py
 ```
 
-To install and test the package locally before publishing:
+Run with SSE transport (same as the container):
 
 ```bash
-uv tool install .
+MCP_TRANSPORT=sse python3 server.py
+```
+
+Run tests:
+
+```bash
+uv run pytest tests/ -v
+```
+
+Rebuild and test the container:
+
+```bash
+docker compose up -d --build
+docker compose logs -f central-mcp
 ```

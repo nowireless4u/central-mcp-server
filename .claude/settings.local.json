@@ -9,9 +9,6 @@
       "Bash(docker stop:*)",
       "Bash(claude mcp:*)",
       "Bash(curl -s -m 5 http://localhost:8001/sse)",
-      "Bash(find . -maxdepth 3 -not -path */node_modules/* -not -path */.git/*)",
-      "mcp__central-mcp__search",
-      "mcp__central-mcp__execute"
     ]
   }
 }
